@@ -5,23 +5,21 @@ interface ChargebeeConfig {
   apiKey: string;
   pricingPageId: string;
   subscriptionId: string;
-}
-
-interface PricingPageSession {
-  id: string;
-  url: string;
-  created_at: number;
-  expires_at: number;
-  object: string;
-}
-
-interface ChargebeeResponse {
-  pricing_page_session: PricingPageSession;
+  customFieldKey?: string;
+  customFieldValue?: string;
 }
 
 export async function POST(request: NextRequest) {
   try {
     const config: ChargebeeConfig = await request.json();
+    console.log("Input config received:", JSON.stringify({
+      domain: config.domain,
+      apiKey: config.apiKey ? "***" + config.apiKey.slice(-4) : undefined,
+      pricingPageId: config.pricingPageId,
+      subscriptionId: config.subscriptionId,
+      customFieldKey: config.customFieldKey,
+      customFieldValue: config.customFieldValue,
+    }, null, 2));
 
     // Validate required fields (pricingPageId is optional)
     if (!config.domain || !config.apiKey || !config.subscriptionId) {
@@ -31,13 +29,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Clean up domain (remove protocol and trailing slashes)
+    // Clean up domain - user only needs to enter site name (e.g., "acme-corp")
+    // We'll add https:// and .chargebee.com automatically
     const cleanDomain = config.domain
-      .replace(/^https?:\/\//, "")
-      .replace(/\/$/, "");
+      .replace(/^https?:\/\//, "")  // Remove protocol if present
+      .replace(/\.chargebee\.com\/?$/, "")  // Remove .chargebee.com if present
+      .replace(/\/$/, "");  // Remove trailing slash
 
-    // Construct the Chargebee API URL
-    const apiUrl = `https://${cleanDomain}/api/v2/pricing_page_sessions/create_for_existing_subscription`;
+    // Construct the Chargebee API URL with full domain
+    const apiUrl = `https://${cleanDomain}.chargebee.com/api/v2/pricing_page_sessions/create_for_existing_subscription`;
 
     // Create Basic Auth header from API key
     const authHeader = Buffer.from(`${config.apiKey}:`).toString("base64");
@@ -49,6 +49,15 @@ export async function POST(request: NextRequest) {
       formData.append("pricing_page[id]", config.pricingPageId);
     }
     formData.append("subscription[id]", config.subscriptionId);
+
+    // Add custom field if both key and value are provided
+    if (config.customFieldKey && config.customFieldValue) {
+      const customData = { [config.customFieldKey]: config.customFieldValue };
+      formData.append("custom", JSON.stringify(customData));
+    }
+
+    console.log("API URL:", apiUrl);
+    console.log("Form data:", formData.toString());
 
     // Make the request to Chargebee
     const response = await fetch(apiUrl, {
@@ -100,14 +109,18 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const data: ChargebeeResponse = await response.json();
+    const data = await response.json();
+    console.log("Raw Chargebee response:", JSON.stringify(data, null, 2));
 
-    return NextResponse.json({
-      sessionId: data.pricing_page_session.id,
-      url: data.pricing_page_session.url,
-      createdAt: data.pricing_page_session.created_at,
-      expiresAt: data.pricing_page_session.expires_at,
-    });
+    const result = {
+      sessionId: data.pricing_page_session?.id,
+      url: data.pricing_page_session?.url,
+      createdAt: data.pricing_page_session?.created_at,
+      expiresAt: data.pricing_page_session?.expires_at,
+    };
+    console.log("Sending to frontend:", JSON.stringify(result, null, 2));
+
+    return NextResponse.json(result);
   } catch (error) {
     console.error("Error creating pricing page session:", error);
     return NextResponse.json(

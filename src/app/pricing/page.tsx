@@ -8,13 +8,15 @@ interface ChargebeeConfig {
   apiKey: string;
   pricingPageId: string;
   subscriptionId: string;
+  customFieldKey: string;
+  customFieldValue: string;
 }
 
 interface PricingSession {
-  sessionId: string;
+  sessionId?: string;
   url: string;
-  createdAt: number;
-  expiresAt: number;
+  createdAt?: number;
+  expiresAt?: number;
 }
 
 export default function Pricing() {
@@ -23,6 +25,8 @@ export default function Pricing() {
     apiKey: "",
     pricingPageId: "",
     subscriptionId: "",
+    customFieldKey: "",
+    customFieldValue: "",
   });
   const [savedConfig, setSavedConfig] = useState<ChargebeeConfig | null>(null);
   const [pricingSession, setPricingSession] = useState<PricingSession | null>(null);
@@ -64,6 +68,7 @@ export default function Pricing() {
       }
 
       const data = await response.json();
+      console.log("Session data received:", data);
       setPricingSession(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "An error occurred");
@@ -84,6 +89,8 @@ export default function Pricing() {
       apiKey: "",
       pricingPageId: "",
       subscriptionId: "",
+      customFieldKey: "",
+      customFieldValue: "",
     });
     setSavedConfig(null);
     setPricingSession(null);
@@ -156,13 +163,15 @@ export default function Pricing() {
             {pricingSession ? (
               <div className="h-full flex flex-col">
                 {/* Iframe Container */}
-                <div className="flex-1 bg-white rounded-xl overflow-hidden shadow-2xl min-h-[600px]">
+                <div className="flex-1 bg-white rounded-xl overflow-hidden shadow-2xl min-h-[800px]">
                   <iframe
                     src={pricingSession.url}
-                    className="w-full h-full min-h-[600px]"
+                    className="w-full h-full min-h-[800px] overflow-hidden"
                     frameBorder="0"
+                    scrolling="no"
                     allow="payment"
                     title="Chargebee Pricing Page"
+                    style={{ overflow: 'hidden' }}
                   />
                 </div>
               </div>
@@ -211,18 +220,21 @@ export default function Pricing() {
           <form onSubmit={handleSubmit} className="flex-1 p-6 space-y-5 overflow-y-auto">
             <div>
               <label className="block text-sm font-medium text-gray-400 mb-2">
-                Chargebee Domain
+                Chargebee Site Name
               </label>
-              <input
-                type="text"
-                name="domain"
-                value={config.domain}
-                onChange={handleInputChange}
-                placeholder="your-site.chargebee.com"
-                className="w-full px-4 py-3 bg-[#1f1f1f] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#E50914] transition-colors"
-                required
-              />
-              <p className="mt-1 text-xs text-gray-600">e.g., acme-corp.chargebee.com</p>
+              <div className="relative">
+                <input
+                  type="text"
+                  name="domain"
+                  value={config.domain}
+                  onChange={handleInputChange}
+                  placeholder="your-site-name"
+                  className="w-full px-4 py-3 pr-32 bg-[#1f1f1f] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#E50914] transition-colors"
+                  required
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">.chargebee.com</span>
+              </div>
+              <p className="mt-1 text-xs text-gray-600">e.g., acme-corp</p>
             </div>
             
             <div>
@@ -273,6 +285,44 @@ export default function Pricing() {
               <p className="mt-1 text-xs text-gray-600">Existing subscription to upgrade</p>
             </div>
 
+            {/* Custom Fields */}
+            <div className="border-t border-gray-800 pt-5">
+              <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">Custom Data</p>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    Custom Field Key
+                    <span className="ml-2 text-xs text-gray-600 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="customFieldKey"
+                    value={config.customFieldKey}
+                    onChange={handleInputChange}
+                    placeholder="e.g., upgrade_intent"
+                    className="w-full px-4 py-3 bg-[#1f1f1f] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#E50914] transition-colors"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-400 mb-2">
+                    Custom Field Value
+                    <span className="ml-2 text-xs text-gray-600 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="customFieldValue"
+                    value={config.customFieldValue}
+                    onChange={handleInputChange}
+                    placeholder="e.g., pro_plan"
+                    className="w-full px-4 py-3 bg-[#1f1f1f] border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:border-[#E50914] transition-colors"
+                  />
+                  <p className="mt-1 text-xs text-gray-600">Passed as JSON: {`{key: value}`}</p>
+                </div>
+              </div>
+            </div>
+
             {/* Status Indicator */}
             {savedConfig && pricingSession && (
               <div className="p-3 bg-green-500/10 border border-green-500/30 rounded-lg">
@@ -281,7 +331,7 @@ export default function Pricing() {
                   <span className="text-sm text-green-400 font-medium">Session Active</span>
                 </div>
                 <p className="text-xs text-gray-500">
-                  ID: {pricingSession.sessionId.slice(0, 8)}...
+                  ID: {pricingSession.sessionId?.slice(0, 8) ?? "N/A"}...
                 </p>
               </div>
             )}
